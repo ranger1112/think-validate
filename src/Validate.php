@@ -684,8 +684,14 @@ class Validate
     {
         $this->error = [];
 
+        // 需要注意此处传递的 $rules 变量并不一定是常规定义验证规则
+        // 此处的 $rules 也是定义的 验证分组而非验
+        // 此处应该是兼容了三种验证场景
+        // 1. $rules = [] 此时将会使用 $this->rules(); 的验证规则
+        // 2. $rules = [ ... ] 此时 $rules 即为定义好的验证规则
+        // 3. $rule 为一个字符串，此时表示使用验证器定义的 验证分组规则
         if (empty($rules)) {
-            // 读取验证规则
+            // 1.
             $rules = $this->rules();
         } elseif (is_string($rules)) {
             $rules = $this->getGroupRules($rules);
@@ -699,14 +705,18 @@ class Validate
             }
         }
 
+        // 这里应该是兼容
+        // 这里很奇怪啊 参数不是限制了 array | string 吗？这里怎么会有 Validate 的实例传递进来呢？
         if ($rules instanceof Validate) {
             $rules = $rules->getRules();
         }
 
+        // 如果定义了验证场景 使用验证场景
         if ($this->currentScene) {
             $this->getScene($this->currentScene);
         }
 
+//        var_dump($this->append);
         foreach ($this->append as $key => $rule) {
             if (!isset($rules[$key])) {
                 $rules[$key] = $rule;
@@ -714,20 +724,29 @@ class Validate
             }
         }
 
+//        var_dump($rules);
+        // 遍历规则
         foreach ($rules as $key => $rule) {
+            // 这里是判断 有没有使用 "key|title" 的特殊写法
+            // 该写法会使用 title 作为 key 对应的 attribute (别称，自定义的字段释义)
             if (str_contains($key, '|')) {
                 // 字段|描述 用于指定属性名称
                 [$key, $title] = explode('|', $key);
             } else {
+                // 没有在中定义就在 field 中看看有没有
+                // field 也没有的话 就直接使用 key 原字段
                 $title = $this->field[$key] ?? $key;
             }
 
             // 场景检测
+            // 当使用了验证场景时会只对验证场景中的 key 进行验证
+            // array_key_exists ? 这里后续看验证场景的实现时再分析
             if (!empty($this->only) && (!in_array($key, $this->only) && !array_key_exists($key, $this->only))) {
                 continue;
             }
 
             // 数据验证
+            // 核心验证逻辑
             $result = $this->checkItems($key, $rule, $data, $title);
             if (false === $result) {
                 return false;
@@ -784,8 +803,11 @@ class Validate
      */
     protected function checkItems($key, $rule, $data, $title): bool
     {
+        // 这里传递的 $data 是整个原生的数据
+//        var_dump($key, $rule, $data, $title);
+        // 当前 rule 是否为一个
         if ($rule instanceof ValidateRuleSet) {
-            // 验证集
+            // 验证集 有点小复杂...后续再分析一下
             $values = $this->getDataSet($data, $key);
             if (empty($values)) {
                 return true;
@@ -800,10 +822,12 @@ class Validate
                 $this->message[$key . '.' . $name] = $message;
             }
         } else {
+            // 这里转化为数组应该是为统一为一种形式方便后面的处理
             $items = [$rule];
         }
 
         foreach ($items as $k => $item) {
+            // 这里应该是判断关联数组
             $name = is_string($k) ? $key . '.' . $k : $key;
             if (str_contains($name, '|')) {
                 // 字段|描述 用于指定属性名称

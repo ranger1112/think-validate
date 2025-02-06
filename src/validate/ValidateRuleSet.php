@@ -31,12 +31,13 @@ class ValidateRuleSet
     /**
      * 添加验证因子
      * @access public
-     * @param  array    $rules  验证因子
-     * @param  array    $message  错误信息
+     * @param array|Closure $rules 验证因子
+     * @param array $message 错误信息
      * @return static
      */
     public static function rules(array|Closure $rules, array $message = [])
     {
+        // 后期静态绑定，当子类调用该方法时实例化的将是子类，而非父类，也也是在哪个类调用实例化哪个类
         return new static($rules, $message);
     }
 
