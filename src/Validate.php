@@ -827,8 +827,11 @@ class Validate
         }
 
         foreach ($items as $k => $item) {
-            // 这里应该是判断关联数组
+            // 这里是通过数据格式判断不同的场景
+            // 1. 当 $k 是 string 时 ，为关联数组，应该是对应了上面的验证集
+            // 2. 当 $k 不是 string 时，其实就是索引数组，对应了最简单的规则验证
             $name = is_string($k) ? $key . '.' . $k : $key;
+            // 照例解析 字段和描述
             if (str_contains($name, '|')) {
                 // 字段|描述 用于指定属性名称
                 [$name, $title] = explode('|', $name);
@@ -836,12 +839,19 @@ class Validate
                 $title = $this->field[$name] ?? $name;
             }
 
+            // 获取原始数据中 key 对应的 值
+            // 这里为啥不用 data_get ?
             $values = $this->getDataSet($data, $name);
             if (empty($values)) {
-                $values[$name] = null;
+                $values[$name] = null;  // 默认值为 null
             }
 
+            // 这是啥玩意？咋还循环验证
+            // 这里是为了支持 类似 items.*.name 这样的数据验证
+            // 当进行二维数组验证时 需要对每个元素的值都进行验证
+            // 当不是二维数组时也转化为该形式进行验证 算是兼容不同的数据格式
             foreach ($values as $value) {
+                // 核心验证逻辑
                 $result = $this->checkItem($name, $value, $item, $data, $title);
                 if (true !== $result) {
                     // 验证失败 记录错误信息
@@ -851,7 +861,7 @@ class Validate
 
                     $this->error[$name] = $result;
                     if ($this->batch) {
-                        // 批量验证
+                        // 批量验证 批量验证不在第一次抛出错误
                     } elseif ($this->failException) {
                         throw new ValidateException($result, $name);
                     } else {
